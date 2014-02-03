@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="fr">
+	<head>
+		<meta charset="utf-8" />
+	    <meta charset="utf-8">
+	    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+	    <meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>Titre</title>
+		<link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.0/css/bootstrap.min.css">
+	    <!--[if lt IE 9]>
+	      <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+	      <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+	    <![endif]-->
+	</head>
+
+	<body>
+		<div class="container">
+			<header class="header">
+				<h1>WebRtC chat P2P</h1> 
+			</header>
+
+				<div class="col-md-12">
+	  					<div class="col-xs-3">
+							<input type="text" placeholder="Message" id="message" class="form-control">
+						</div>
+	  					<div class="col-xs-3">
+							<a href="javascript:;" onclick="PostMessage();" class="btn btn-sm btn-primary">Envoyer</a>
+						</div>
+				</div>
+				<div class="col-md-6">
+					<h2>Reception</h2>
+					<div class="coll-md-12" id="recp"><br/><br/><br/><br/></div>
+				</div>
+				<div class="col-md-6">
+					<h2>Envoi</h2>
+					<div class="coll-md-12" id="post"><br/><br/><br/><br/></div>
+				</div>
+
+			<footer id="footer">
+				<p>By Franck Ruysschaert</p>
+			</footer>
+		</div>
+		<script src='/socket.io/socket.io.js'></script>
+		<script type="text/javascript">
+			var socket = io.connect();
+			socket.on('connect', function (){
+			  console.log('Connected');
+			});
+			socket.on('message', function (data){
+				console.log(data);
+				var recp = document.getElementById('recp');
+				recp.innerHTML+="<br>"+data;
+			});
+			function PostMessage(){
+				console.log('PostMessage');
+				var message = document.getElementById('message');
+				socket.emit('message', message.value);
+				var recp = document.getElementById('post');
+				recp.innerHTML += "<br>"+message.value;
+			}
+		</script>
+	</body>
+
+</html>

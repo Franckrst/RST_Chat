@@ -1,0 +1,16 @@
+{
+  "name": "Chat",
+  "version": "0.0.1",
+  "description": "Chat WebRTC and NodeJS",
+  "main": "index.js",
+  "dependencies": {
+    "socket.io": "~0.9.16",
+    "node-static": "~0.7.3"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Franck Ruysschaert",
+  "license": "MIT"
+}
