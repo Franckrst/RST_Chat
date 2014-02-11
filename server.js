@@ -23,17 +23,7 @@ var app = http.createServer(function (req, res) {
 */
 var ClientWait = [];
 var RoomList = [];
-function makeid(){
-    var text = "";
-    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    for( var i=0; i < 5; i++ )
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-    console.log(text);
-    if(RoomList.indexOf(text) != -1){
-    	text = makeid();
-    }
-    return text;
-}
+
 function getRoom(rooms){
  	var roomName ;
 	for(var room in rooms){
@@ -42,33 +32,32 @@ function getRoom(rooms){
 	}
 	return roomName;
 }
-function NeedPeer(socket){
-	if(ClientWait.length >= 1){
-		var roomName = makeid();
-		var partenaire = ClientWait.shift();
-		console.log("===>"+partenaire);
-		partenaire.join(roomName);
-		socket.join(roomName);
-		io.sockets.in(roomName).emit('message',"You are in : "+roomName);
-		return true;
-	}else{
-		ClientWait.push(socket);
-		return false;
-	}
-}
 var io = require('socket.io').listen(app);
 io.sockets.on('connection', function (socket){
-
-	NeedPeer(socket);
+	socket.on("join",function(room){
+		var numClients = io.sockets.clients(room).length;
+		if(numClients > 6){
+			socket.emit("full");
+			console.log("## ROOM FULL '"+room+"'! ##");
+		}else{
+			socket.join(room);
+			socket.emit("joined");
+			console.log("## JOIN ROM '"+room+"'! ##");
+			if(numClients>0){
+				socket.broadcast.to(getRoom(io.sockets.manager.roomClients[socket.id])).emit('new_client', socket.id);
+			}
+		}
+	});
+	socket.on('p2p',function(tab){
+		socket_id = tab[0];
+		message = tab[1];
+		io.sockets.socket(socket_id).emit('p2p',[socket.id,message]);
+	});
 	socket.on('disconnect', function(socket) {
-		socket.broadcast.to(getRoom(io.sockets.manager.roomClients[socket.id])).emit('message', "Se connard est partie");
-		console.log('Got disconnect!');
+		socket.broadcast.to(getRoom(io.sockets.manager.roomClients[socket.id])).emit('client_left', socket.id);
+		console.log('## disconnect! ##');
 	});
 
-	socket.on('message', function (message) {
-    // For a real app, should be room only (not broadcast)
-		socket.broadcast.to(getRoom(io.sockets.manager.roomClients[socket.id])).emit('message', message);
-	});
 
 });
 

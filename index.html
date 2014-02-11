@@ -11,6 +11,9 @@
 	      <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
 	      <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
 	    <![endif]-->
+			<style>
+			video{ width: 100px; height: 100px;}
+			</style>
 	</head>
 
 	<body>
@@ -18,46 +21,247 @@
 			<header class="header">
 				<h1>WebRtC chat P2P</h1> 
 			</header>
-
-				<div class="col-md-12">
-	  					<div class="col-xs-3">
-							<input type="text" placeholder="Message" id="message" class="form-control">
-						</div>
-	  					<div class="col-xs-3">
-							<a href="javascript:;" onclick="PostMessage();" class="btn btn-sm btn-primary">Envoyer</a>
-						</div>
-				</div>
-				<div class="col-md-6">
-					<h2>Reception</h2>
-					<div class="coll-md-12" id="recp"><br/><br/><br/><br/></div>
-				</div>
-				<div class="col-md-6">
-					<h2>Envoi</h2>
-					<div class="coll-md-12" id="post"><br/><br/><br/><br/></div>
-				</div>
-
+			<div id="listVideo">
+				<video class="" id="localVideo" autoplay></video>
+			</div>
 			<footer id="footer">
 				<p>By Franck Ruysschaert</p>
 			</footer>
 		</div>
+		<script src="http://code.jquery.com/jquery-1.10.2.min.js"></script>
 		<script src='/socket.io/socket.io.js'></script>
+		<script type="text/javascript" src="adapter.js"></script>
 		<script type="text/javascript">
-			var socket = io.connect();
-			socket.on('connect', function (){
-			  console.log('Connected');
-			});
-			socket.on('message', function (data){
-				console.log(data);
-				var recp = document.getElementById('recp');
-				recp.innerHTML+="<br>"+data;
-			});
-			function PostMessage(){
-				console.log('PostMessage');
-				var message = document.getElementById('message');
-				socket.emit('message', message.value);
-				var recp = document.getElementById('post');
-				recp.innerHTML += "<br>"+message.value;
+			var pc_config = {'iceServers': [{'url': 'stun:stun.l.google.com:19302'}]};
+			// Set up audio and video regardless of what devices are present.
+			var sdpConstraints = {'mandatory': {
+				'OfferToReceiveAudio':true,
+				'OfferToReceiveVideo':true }};
+
+			var socket = null;
+			var p2p = Array();
+			var localStream ;
+			var localVideo = $("#localVideo")[0];
+			var room = "toto";
+			var remoteVideo =  $("#remoteVideo")[0];
+			function creatP2P(socket_id,offer){
+				try {
+					console.log('Created RTCPeerConnnection');
+					var pc = new RTCPeerConnection(null);
+					pc.onicecandidate = function (event) {
+					  console.log('handleIceCandidate event: ', event);
+					  if (event.candidate) {
+						socket.emit('p2p', [socket_id,{
+					      type: 'candidate',
+					      label: event.candidate.sdpMLineIndex,
+					      id: event.candidate.sdpMid,
+					      candidate: event.candidate.candidate}]);
+						} else {
+							console.log('End of candidates.');
+						}
+					};
+					pc.onaddstream = handleRemoteStreamAdded;
+					pc.onremovestream = handleRemoteStreamRemoved;
+					pc.addStream(localStream);
+					p2p.push(Array(socket_id,pc));
+					if(offer)
+  					pc.createOffer(function(sessionDescription){
+						// Set Opus as the preferred codec in SDP if Opus is present.
+						sessionDescription.sdp = preferOpus(sessionDescription.sdp);
+						pc.setLocalDescription(sessionDescription);
+						console.log('setLocalAndSendMessage sending message' , sessionDescription);
+						socket.emit('p2p', [socket_id,sessionDescription]);
+  					}, function(){alert("creatOffert bug !!");});
+  					return pc;
+				} catch (e) {
+					console.log('Failed to create PeerConnection, exception: ' + e.message);
+					alert('Cannot create RTCPeerConnection object.');
+				}
 			}
+			function handleRemoteStreamAdded(event) {
+			  console.log('Remote stream added.');
+			  $("#listVideo").append('<video autoplay></video>');
+			  console.log(
+			  $("#listVideo video").last()[0]);
+			  $("video:last-child")[0].src = window.URL.createObjectURL(event.stream);
+			  remoteStream = event.stream;
+			}
+
+			function handleRemoteStreamRemoved(event) {
+			  console.log('Remote stream removed. Event: ', event);
+			}
+			/******************************************************
+								SERVER CONNECT
+			*******************************************************/
+			function ConnectServer(){
+				socket = io.connect();
+				socket.on('connect', function (){ // CONNECTED
+				  console.log('Connected');
+				  socket.emit("join",room);
+				});
+				socket.on('new_client',function(socket_id){ 
+					var pc = creatP2P(socket_id,true);
+				});
+				socket.on('joined',function(){console.log("joined")});
+				socket.on('full',function(){alert("Room full");});
+				socket.on('p2p', function (message){
+				var pc = getP2p(message[0]);
+				console.log('Client received message:', message[1]);
+				if (message[1].type === 'offer') {
+					var toto = creatP2P(message[0],false);
+					console.log(toto);
+					toto.setRemoteDescription(new RTCSessionDescription(message[1]));
+					toto.createAnswer(function(sessionDescription){
+					sessionDescription.sdp = preferOpus(sessionDescription.sdp);
+					toto.setLocalDescription(sessionDescription);
+					console.log('setLocalAndSendMessage sending message' , sessionDescription);
+					socket.emit('p2p', [message[0],sessionDescription]);}, null, sdpConstraints);
+				} else if (message[1].type === 'answer') {
+					console.log("answer");
+					pc.setRemoteDescription(new RTCSessionDescription(message[1]));
+				} else if (message[1].type === 'candidate') {
+					var candidate = new RTCIceCandidate({
+					sdpMLineIndex: message[1].label,
+					candidate: message[1].candidate
+					});
+					pc.addIceCandidate(candidate);
+				}
+				});
+			}
+function getP2p (socket_id){
+	for (var i = 0; i < p2p.length; i++) {
+		if(p2p[i][0] == socket_id) return p2p[i][1];
+	};
+}
+			/******************************************************
+								LOCAL STREAM
+			*******************************************************/
+			//Demande d'utilisation de la caméra
+			getUserMedia({video: true}, userMediaOn, UserMediaFail);
+			//Demande accepter 
+			function userMediaOn(stream) {
+			  console.log('Ajout du stream LOCAL.');
+			  localVideo.src = window.URL.createObjectURL(stream);
+			  localStream = stream;
+			  if (socket == null) {
+			    ConnectServer();
+			  }
+			}
+			//Demander en echec
+			function UserMediaFail (error){
+  				console.log('getUserMedia error: ', error);
+			}
+			if (location.hostname != "localhost") {
+			  requestTurn('https://computeengineondemand.appspot.com/turn?username=41784574&key=4080218913');
+			}
+
+
+
+function requestTurn(turn_url) {
+  var turnExists = false;
+  for (var i in pc_config.iceServers) {
+    if (pc_config.iceServers[i].url.substr(0, 5) === 'turn:') {
+      turnExists = true;
+      turnReady = true;
+      break;
+    }
+  }
+  if (!turnExists) {
+    console.log('Getting TURN server from ', turn_url);
+    // No TURN server. Get one from computeengineondemand.appspot.com:
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function(){
+      if (xhr.readyState === 4 && xhr.status === 200) {
+        var turnServer = JSON.parse(xhr.responseText);
+      	console.log('Got TURN server: ', turnServer);
+        pc_config.iceServers.push({
+          'url': 'turn:' + turnServer.username + '@' + turnServer.turn,
+          'credential': turnServer.password
+        });
+        turnReady = true;
+      }
+    };
+    xhr.open('GET', turn_url, true);
+    xhr.send();
+  }
+}
+
+///////////////////////////////////////////
+
+// Set Opus as the default audio codec if it's present.
+function preferOpus(sdp) {
+  var sdpLines = sdp.split('\r\n');
+  var mLineIndex;
+  // Search for m line.
+  for (var i = 0; i < sdpLines.length; i++) {
+      if (sdpLines[i].search('m=audio') !== -1) {
+        mLineIndex = i;
+        break;
+      }
+  }
+  if (mLineIndex === null) {
+    return sdp;
+  }
+
+  // If Opus is available, set it as the default in m line.
+  for (i = 0; i < sdpLines.length; i++) {
+    if (sdpLines[i].search('opus/48000') !== -1) {
+      var opusPayload = extractSdp(sdpLines[i], /:(\d+) opus\/48000/i);
+      if (opusPayload) {
+        sdpLines[mLineIndex] = setDefaultCodec(sdpLines[mLineIndex], opusPayload);
+      }
+      break;
+    }
+  }
+
+  // Remove CN in m line and sdp.
+  sdpLines = removeCN(sdpLines, mLineIndex);
+
+  sdp = sdpLines.join('\r\n');
+  return sdp;
+}
+
+function extractSdp(sdpLine, pattern) {
+  var result = sdpLine.match(pattern);
+  return result && result.length === 2 ? result[1] : null;
+}
+
+// Set the selected codec to the first in m line.
+function setDefaultCodec(mLine, payload) {
+  var elements = mLine.split(' ');
+  var newLine = [];
+  var index = 0;
+  for (var i = 0; i < elements.length; i++) {
+    if (index === 3) { // Format of media starts from the fourth.
+      newLine[index++] = payload; // Put target payload to the first.
+    }
+    if (elements[i] !== payload) {
+      newLine[index++] = elements[i];
+    }
+  }
+  return newLine.join(' ');
+}
+
+// Strip CN from sdp before CN constraints is ready.
+function removeCN(sdpLines, mLineIndex) {
+  var mLineElements = sdpLines[mLineIndex].split(' ');
+  // Scan from end for the convenience of removing an item.
+  for (var i = sdpLines.length-1; i >= 0; i--) {
+    var payload = extractSdp(sdpLines[i], /a=rtpmap:(\d+) CN\/\d+/i);
+    if (payload) {
+      var cnPos = mLineElements.indexOf(payload);
+      if (cnPos !== -1) {
+        // Remove CN payload from m line.
+        mLineElements.splice(cnPos, 1);
+      }
+      // Remove CN line in sdp
+      sdpLines.splice(i, 1);
+    }
+  }
+
+  sdpLines[mLineIndex] = mLineElements.join(' ');
+  return sdpLines;
+}
 		</script>
 	</body>
 
