@@ -5,6 +5,7 @@ var app = http.createServer(function (req, res) {
   file.serve(req, res);
 }).listen(2012);
 /*
+	vizeocall.com
 	-Principe du server:
 		#ROOM[]
 		#ClientWait[]

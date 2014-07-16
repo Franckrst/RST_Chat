@@ -10,24 +10,26 @@
 		<link href='http://fonts.googleapis.com/css?family=Condiment' rel='stylesheet' type='text/css'>
 	</head>
 
-	<body>
+	<body id="chat">
 		<div id="content">
 			<div class="vcontent">
 				<h1>WideoConf</h1>
-					<a class="btn btn-creat" href="chat.html">Créer</a>
-					<a class="btn btn-join">Rejoindre</a>
-				<p>
-					Rejoin ou Créer une WideoConf, puis invite tes amis par FaceBook, Twitter, Google+ ou en leur en leur donnant le lien.
-				</p>
-			</div>
-			<div id="listVideo">
-				<video class="" id="localVideo" autoplay></video>
+				<div id="listVideo">
+					<p id="wait">
+						En attente de participant...<br><br>
+						<img src="loader.gif">
+					</p>
+				</div>
+				<div id="xMe">
+					<video class="" id="localVideo" autoplay></video>
+				</div>
 			</div>
 		</div>
 		<div class="bokeh"></div>
 		<script src="http://code.jquery.com/jquery-1.10.2.min.js"></script>
 		<script src='/socket.io/socket.io.js'></script>
 		<script type="text/javascript" src="adapter.js"></script>
+		<script type="text/javascript" src="main.js"></script>
 		<script type="text/javascript" src="boken.jquery.js"></script>
 		<script type="text/javascript">
 			$(document).resize(function(){
